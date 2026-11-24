@@ -43,10 +43,8 @@ class ProfileApiService {
   }) async {
     final query = <String, String>{
       'email': email.trim(),
-      if (excludeProfileId != null) 'excludeUserId': '$excludeProfileId',
     };
     final uri = _profilesUri.replace(
-      path: '${_profilesUri.path}/check-email',
       queryParameters: query,
     );
     final response = await _send(
@@ -54,9 +52,22 @@ class ProfileApiService {
       uri: uri,
       headers: await _authHeaders.jsonWithTokenIfPresent(),
     );
+    if (response.statusCode == HttpStatus.notFound) {
+      // En iam-cafelab, 404 significa que el correo no pertenece a ningún perfil existente
+      return true;
+    }
     if (response.statusCode == HttpStatus.ok) {
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      return decoded['available'] as bool? ?? false;
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        if (decoded.containsKey('available')) {
+          return decoded['available'] as bool? ?? false;
+        }
+        final existingId = decoded['id'];
+        if (excludeProfileId != null && existingId != null) {
+          return existingId == excludeProfileId;
+        }
+      }
+      return false;
     }
     throw _mapHttpError(response.statusCode, response.body);
   }
@@ -65,24 +76,8 @@ class ProfileApiService {
     required String cafeteriaName,
     int? excludeProfileId,
   }) async {
-    final query = <String, String>{
-      'cafeteriaName': cafeteriaName.trim(),
-      if (excludeProfileId != null) 'excludeUserId': '$excludeProfileId',
-    };
-    final uri = _profilesUri.replace(
-      path: '${_profilesUri.path}/check-cafeteria',
-      queryParameters: query,
-    );
-    final response = await _send(
-      method: 'GET',
-      uri: uri,
-      headers: await _authHeaders.jsonWithTokenIfPresent(),
-    );
-    if (response.statusCode == HttpStatus.ok) {
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      return decoded['available'] as bool? ?? false;
-    }
-    throw _mapHttpError(response.statusCode, response.body);
+    // El microservicio iam-cafelab no restringe unicidad global de nombre de cafetería
+    return true;
   }
 
   Future<ProfileModel> getProfileByEmail(String email) async {

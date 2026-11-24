@@ -27,7 +27,9 @@ jobs:
 
       - run: flutter pub get
 
-      - run: flutter build apk --release --dart-define=API_BASE_URL=https://cafelabbackend-gmg8egarcxadh4ec.canadacentral-01.azurewebsites.net
+      - run: flutter test
+
+      - run: flutter build apk --release --dart-define=API_BASE_URL=http://141.148.45.231:8080
 
       # Lee la versión desde pubspec.yaml (ej: "0.1.0+1" -> "0.1.0")
       - name: Get version

@@ -24,8 +24,6 @@ class MonitoringPage extends StatefulWidget {
   State<MonitoringPage> createState() => _MonitoringPageState();
 }
 
-class _LotsSelectionPageState {} 
-
 class _MonitoringPageState extends State<MonitoringPage> {
   final _controller = MonitoringPageController();
   _MonitoringMode _currentMode = _MonitoringMode.dashboard;

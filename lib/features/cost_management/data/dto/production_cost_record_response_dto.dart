@@ -89,4 +89,31 @@ class ProductionCostRecordResponseDto {
       updatedAt: json['updatedAt'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'userId': userId,
+        'coffeeLotId': coffeeLotId,
+        'lotName': lotName,
+        'coffeeType': coffeeType,
+        'currency': currency,
+        'totalKg': totalKg,
+        'marginPercent': marginPercent,
+        'rawMaterialsCost': rawMaterialsCost,
+        'laborCost': laborCost,
+        'transportCost': transportCost,
+        'storageCost': storageCost,
+        'processingCost': processingCost,
+        'otherIndirectCosts': otherIndirectCosts,
+        'totalDirectCost': totalDirectCost,
+        'totalIndirectCost': totalIndirectCost,
+        'totalCost': totalCost,
+        'costPerKg': costPerKg,
+        'suggestedPrice': suggestedPrice,
+        'potentialMargin': potentialMargin,
+        'status': status,
+        'reason': reason,
+        'createdAt': createdAt,
+        'updatedAt': updatedAt,
+      };
 }

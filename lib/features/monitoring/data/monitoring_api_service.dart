@@ -6,7 +6,6 @@ import 'package:cafelab_iot_mobile/core/config/api_config.dart';
 import 'package:cafelab_iot_mobile/features/auth/data/token_storage_service.dart';
 import 'package:cafelab_iot_mobile/features/defects/domain/models/api_message_error.dart'; 
 import 'package:cafelab_iot_mobile/features/monitoring/domain/models/environment_threshold.dart';
-import 'package:cafelab_iot_mobile/features/monitoring/domain/models/monitoring_alert.dart';
 import 'package:cafelab_iot_mobile/features/monitoring/domain/models/telemetry_record.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -108,37 +107,76 @@ class MonitoringApiService {
     throw _mapHttpError(response.statusCode, response.body);
   }
 
-  // 5. GET: Obtener alertas de un lote específico
+  // 5. GET: Obtener alertas de un lote específico desde el Dashboard del microservicio IoT
   Future<List<dynamic>> getAlertsByLotId(int lotId) async {
     final headers = await _authHeaders();
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/v1/monitoring-alerts/coffee-lot/$lotId');
-    
-    final response = await _send(
-      method: 'GET', 
-      uri: uri, 
-      headers: headers
+    final dashboardUri = Uri.parse(
+      '${ApiConfig.baseUrl}${ApiConfig.iotDashboardBasePath}?limit=20',
     );
-    
-    if (response.statusCode == HttpStatus.ok) {
-      // Retornamos el JSON decodificado como lista cruda
-      return jsonDecode(response.body) as List<dynamic>;
+
+    try {
+      final response = await _send(
+        method: 'GET',
+        uri: dashboardUri,
+        headers: headers,
+      );
+
+      if (response.statusCode == HttpStatus.ok && response.body.trim().isNotEmpty) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && decoded.containsKey('activeAlerts')) {
+          final activeAlerts = decoded['activeAlerts'];
+          if (activeAlerts is List && activeAlerts.isNotEmpty) {
+            return activeAlerts.asMap().entries.map((entry) {
+              return {
+                'id': entry.key + 1,
+                'coffeeLotId': lotId,
+                'metricType': entry.value.toString(),
+                'currentValue': 0.0,
+                'thresholdViolated': 0.0,
+                'read': false,
+                'createdAt': DateTime.now().toIso8601String(),
+              };
+            }).toList();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[MonitoringApiService] Dashboard fetch: $e');
     }
-    throw _mapHttpError(response.statusCode, response.body);
+
+    // Fallback secundario si existe ruta específica
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/v1/monitoring-alerts/coffee-lot/$lotId');
+    try {
+      final response = await _send(
+        method: 'GET',
+        uri: uri,
+        headers: headers,
+      );
+      if (response.statusCode == HttpStatus.ok) {
+        return jsonDecode(response.body) as List<dynamic>;
+      }
+    } catch (_) {
+      // Ignorar fallback si no está disponible en microservicios
+    }
+    return [];
   }
 
   // 6. PATCH: Marcar alerta como leída
   Future<void> markAlertAsRead(int alertId) async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/v1/monitoring-alerts/$alertId/read');
-    
-    final response = await _send(
-      method: 'PATCH', 
-      uri: uri, 
-      headers: headers
-    );
-    
-    if (response.statusCode != HttpStatus.noContent && response.statusCode != HttpStatus.ok) {
-      throw _mapHttpError(response.statusCode, response.body);
+
+    try {
+      final response = await _send(
+        method: 'PATCH',
+        uri: uri,
+        headers: headers,
+      );
+      if (response.statusCode != HttpStatus.noContent && response.statusCode != HttpStatus.ok) {
+        debugPrint('[MonitoringApiService] markAlertAsRead status: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('[MonitoringApiService] markAlertAsRead omitido: $e');
     }
   }
 
