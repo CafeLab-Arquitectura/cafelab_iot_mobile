@@ -17,15 +17,32 @@ class MonitoringAlert {
     required this.createdAt,
   });
 
-factory MonitoringAlert.fromJson(Map<String, dynamic> json) {
+  factory MonitoringAlert.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    double toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      return double.tryParse('$val') ?? 0.0;
+    }
+
+    DateTime parseDate(dynamic val) {
+      if (val is String) {
+        return DateTime.tryParse(val) ?? DateTime.now();
+      }
+      return DateTime.now();
+    }
+
     return MonitoringAlert(
-      id: json['id'],
-      coffeeLotId: json['coffeeLotId'],
-      metricType: json['metricType'],
-      currentValue: (json['currentValue'] as num).toDouble(),
-      thresholdViolated: (json['thresholdViolated'] as num).toDouble(),
-      isRead: json['read'] ?? false,
-      createdAt: DateTime.parse(json['createdAt']),
+      id: toInt(json['id']),
+      coffeeLotId: toInt(json['coffeeLotId']),
+      metricType: (json['metricType'] as String?) ?? '',
+      currentValue: toDouble(json['currentValue']),
+      thresholdViolated: toDouble(json['thresholdViolated']),
+      isRead: json['read'] ?? json['isRead'] ?? false,
+      createdAt: parseDate(json['createdAt']),
     );
-}
+  }
 }

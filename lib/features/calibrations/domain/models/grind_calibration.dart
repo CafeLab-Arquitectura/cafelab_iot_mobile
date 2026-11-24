@@ -39,18 +39,34 @@ class GrindCalibration {
   final String? sampleImage;
 
   factory GrindCalibration.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    double toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      return double.tryParse('$val') ?? 0.0;
+    }
+
+    DateTime parseDate(dynamic val) {
+      if (val is String) {
+        return DateTime.tryParse(val) ?? DateTime.now();
+      }
+      return DateTime.now();
+    }
+
     return GrindCalibration(
-      id: (json['id'] as num).toInt(),
-      userId: (json['userId'] as num).toInt(),
-      name: json['name'] as String,
-      method: json['method'] as String,
-      equipment: json['equipment'] as String,
-      grindNumber: json['grindNumber'] as String,
-      aperture: (json['aperture'] as num).toDouble(),
-      cupVolume: (json['cupVolume'] as num).toDouble(),
-      finalVolume: (json['finalVolume'] as num).toDouble(),
-      calibrationDate:
-          grindCalibrationDateFromWire(json['calibrationDate'] as String),
+      id: toInt(json['id']),
+      userId: toInt(json['userId']),
+      name: (json['name'] as String?) ?? '',
+      method: (json['method'] as String?) ?? '',
+      equipment: (json['equipment'] as String?) ?? '',
+      grindNumber: (json['grindNumber'] as String?) ?? '',
+      aperture: toDouble(json['aperture']),
+      cupVolume: toDouble(json['cupVolume']),
+      finalVolume: toDouble(json['finalVolume']),
+      calibrationDate: parseDate(json['calibrationDate']),
       comments: json['comments'] as String?,
       notes: json['notes'] as String?,
       sampleImage: json['sampleImage'] as String?,

@@ -28,13 +28,30 @@ class InventoryEntry {
   final String finalProduct;
 
   factory InventoryEntry.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    double toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      return double.tryParse('$val') ?? 0.0;
+    }
+
+    DateTime parseDate(dynamic val) {
+      if (val is String) {
+        return DateTime.tryParse(val) ?? DateTime.now();
+      }
+      return DateTime.now();
+    }
+
     return InventoryEntry(
-      id: (json['id'] as num).toInt(),
-      userId: (json['userId'] as num).toInt(),
-      coffeeLotId: (json['coffeeLotId'] as num).toInt(),
-      quantityUsed: (json['quantityUsed'] as num).toDouble(),
-      dateUsed: inventoryEntryDateFromWire(json['dateUsed'] as String),
-      finalProduct: json['finalProduct'] as String,
+      id: toInt(json['id']),
+      userId: toInt(json['userId']),
+      coffeeLotId: toInt(json['coffeeLotId']),
+      quantityUsed: toDouble(json['quantityUsed']),
+      dateUsed: parseDate(json['dateUsed']),
+      finalProduct: (json['finalProduct'] as String?) ?? '',
     );
   }
 }

@@ -29,9 +29,11 @@ class UpdateSupplierRequestDto {
     return {
       'name': name,
       'email': email,
-      'phone': phone,
+      'phone': '$phone',
       'location': location,
       'specialties': specialties,
+      'specialities': specialties,
+      'status': 'ACTIVE',
     };
   }
 }

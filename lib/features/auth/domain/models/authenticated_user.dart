@@ -14,8 +14,14 @@ class AuthenticatedUser {
   });
 
   factory AuthenticatedUser.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    final rawId = json['id'] ?? json['userId'];
     return AuthenticatedUser(
-      id: (json['id'] as num).toInt(),
+      id: toInt(rawId),
       email: (json['email'] as String?) ?? '',
       role: (json['role'] as String?) ?? 'barista',
       token: (json['token'] as String?) ?? '',

@@ -14,12 +14,35 @@ class TelemetryRecord {
   });
 
   factory TelemetryRecord.fromJson(Map<String, dynamic> json) {
+    int? toNullableInt(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toInt();
+      return int.tryParse('$val');
+    }
+
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    double toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      return double.tryParse('$val') ?? 0.0;
+    }
+
+    DateTime parseDate(dynamic val) {
+      if (val is String) {
+        return DateTime.tryParse(val) ?? DateTime.now();
+      }
+      return DateTime.now();
+    }
+
     return TelemetryRecord(
-      id: json['id'] as int?,
-      coffeeLotId: json['coffeeLotId'] as int,
-      temperature: (json['temperature'] as num).toDouble(),
-      humidity: (json['humidity'] as num).toDouble(),
-      timestamp: DateTime.parse(json['timestamp'] as String),
+      id: toNullableInt(json['id']),
+      coffeeLotId: toInt(json['coffeeLotId']),
+      temperature: toDouble(json['temperature']),
+      humidity: toDouble(json['humidity']),
+      timestamp: parseDate(json['timestamp']),
     );
   }
 }

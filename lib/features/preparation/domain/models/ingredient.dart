@@ -14,12 +14,22 @@ class Ingredient {
   final String unit;
 
   factory Ingredient.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    double toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      return double.tryParse('$val') ?? 0.0;
+    }
+
     return Ingredient(
-      id: (json['id'] as num).toInt(),
-      recipeId: (json['recipeId'] as num).toInt(),
-      name: json['name'] as String,
-      amount: (json['amount'] as num).toDouble(),
-      unit: json['unit'] as String,
+      id: toInt(json['id']),
+      recipeId: toInt(json['recipeId']),
+      name: (json['name'] as String?) ?? '',
+      amount: toDouble(json['amount']),
+      unit: (json['unit'] as String?) ?? '',
     );
   }
 }

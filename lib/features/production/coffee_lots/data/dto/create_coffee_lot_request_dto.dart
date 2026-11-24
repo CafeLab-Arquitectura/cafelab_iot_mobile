@@ -39,14 +39,20 @@ class CreateCoffeeLotRequestDto {
 
   Map<String, dynamic> toJson() {
     return {
+      'supplierId': supplierId,
       'supplier_id': supplierId,
+      'lotName': lotName,
       'lot_name': lotName,
+      'coffeeType': coffeeType,
       'coffee_type': coffeeType,
+      'processingMethod': processingMethod,
       'processing_method': processingMethod,
+      'altitudeMeters': altitude.toDouble(),
       'altitude': altitude,
+      'initialWeight': weight,
       'weight': weight,
       'origin': origin,
-      'status': status,
+      'status': status.isEmpty ? 'ACTIVE' : status,
       'certifications': certifications,
     };
   }

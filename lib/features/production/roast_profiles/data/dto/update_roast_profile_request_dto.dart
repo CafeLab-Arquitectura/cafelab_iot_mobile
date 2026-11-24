@@ -36,9 +36,13 @@ class UpdateRoastProfileRequestDto {
       'name': name,
       'type': type,
       'duration': duration,
+      'durationSeconds': duration,
       'tempStart': tempStart,
+      'temperatureStart': tempStart,
       'tempEnd': tempEnd,
+      'temperatureEnd': tempEnd,
       'lot': lot,
+      'coffeeLotId': lot,
       'isFavorite': isFavorite,
     };
   }

@@ -14,12 +14,22 @@ class Coffee {
   final double totalWeight;
 
   factory Coffee.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    double toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      return double.tryParse('$val') ?? 0.0;
+    }
+
     return Coffee(
-      id: (json['id'] as num).toInt(),
-      name: json['name'] as String,
-      region: json['region'] as String,
-      variety: json['variety'] as String,
-      totalWeight: (json['totalWeight'] as num).toDouble(),
+      id: toInt(json['id']),
+      name: (json['name'] as String?) ?? '',
+      region: (json['region'] as String?) ?? '',
+      variety: (json['variety'] as String?) ?? '',
+      totalWeight: toDouble(json['totalWeight']),
     );
   }
 }

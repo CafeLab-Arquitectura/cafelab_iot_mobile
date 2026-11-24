@@ -47,22 +47,28 @@ class Recipe {
         }
       }
     }
+
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
     return Recipe(
-      id: (json['id'] as num).toInt(),
-      userId: (json['userId'] as num).toInt(),
-      name: json['name'] as String,
-      imageUrl: json['imageUrl'] as String,
-      extractionMethod: json['extractionMethod'] as String,
-      extractionCategory: json['extractionCategory'] as String,
-      ratio: json['ratio'] as String,
-      cuppingSessionId: (json['cuppingSessionId'] as num).toInt(),
-      portfolioId: (json['portfolioId'] as num).toInt(),
-      preparationTime: (json['preparationTime'] as num).toInt(),
-      steps: json['steps'] as String,
+      id: toInt(json['id']),
+      userId: toInt(json['userId']),
+      name: (json['name'] as String?) ?? '',
+      imageUrl: (json['imageUrl'] as String?) ?? '',
+      extractionMethod: (json['extractionMethod'] as String?) ?? '',
+      extractionCategory: (json['extractionCategory'] as String?) ?? '',
+      ratio: (json['ratio'] as String?) ?? '',
+      cuppingSessionId: toInt(json['cuppingSessionId']),
+      portfolioId: toInt(json['portfolioId']),
+      preparationTime: toInt(json['preparationTime']),
+      steps: (json['steps'] as String?) ?? '',
       tips: (json['tips'] as String?) ?? '',
       cupping: (json['cupping'] as String?) ?? '',
       grindSize: (json['grindSize'] as String?) ?? '-',
-      createdAt: json['createdAt'] as String,
+      createdAt: (json['createdAt'] as String?) ?? '',
       ingredients: parsedIngredients,
     );
   }

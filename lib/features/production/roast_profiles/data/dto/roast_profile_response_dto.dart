@@ -22,15 +22,30 @@ class RoastProfileResponseDto {
   });
 
   factory RoastProfileResponseDto.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    double toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      return double.tryParse('$val') ?? 0.0;
+    }
+
+    final rawId = json['id'] ?? json['roastProfileId'];
+    final rawDuration = json['duration'] ?? json['durationSeconds'];
+    final rawTempStart = json['tempStart'] ?? json['temperatureStart'];
+    final rawTempEnd = json['tempEnd'] ?? json['temperatureEnd'];
+
     return RoastProfileResponseDto(
-      id: (json['id'] as num).toInt(),
-      userId: (json['userId'] as num).toInt(),
-      name: json['name'] as String,
-      type: json['type'] as String,
-      duration: (json['duration'] as num).toInt(),
-      tempStart: (json['tempStart'] as num).toDouble(),
-      tempEnd: (json['tempEnd'] as num).toDouble(),
-      coffeeLotId: (json['coffeeLotId'] as num).toInt(),
+      id: toInt(rawId),
+      userId: toInt(json['userId']),
+      name: (json['name'] as String?) ?? '',
+      type: (json['type'] as String?) ?? '',
+      duration: toInt(rawDuration),
+      tempStart: toDouble(rawTempStart),
+      tempEnd: toDouble(rawTempEnd),
+      coffeeLotId: toInt(json['coffeeLotId']),
       isFavorite: (json['isFavorite'] as bool?) ?? false,
     );
   }

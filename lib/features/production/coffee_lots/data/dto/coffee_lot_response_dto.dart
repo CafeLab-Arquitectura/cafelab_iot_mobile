@@ -33,17 +33,32 @@ class CoffeeLotResponseDto {
         if (item is String) certs.add(item);
       }
     }
+
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
+    double toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      return double.tryParse('$val') ?? 0.0;
+    }
+
+    final rawId = json['id'] ?? json['coffeeLotId'];
+    final rawAltitude = json['altitude'] ?? json['altitudeMeters'];
+    final rawWeight = json['weight'] ?? json['remainingWeight'];
+
     return CoffeeLotResponseDto(
-      id: (json['id'] as num).toInt(),
-      userId: (json['userId'] as num).toInt(),
-      supplierId: (json['supplierId'] as num).toInt(),
-      lotName: json['lotName'] as String,
-      coffeeType: json['coffeeType'] as String,
-      processingMethod: json['processingMethod'] as String,
-      altitude: (json['altitude'] as num).toInt(),
-      weight: (json['weight'] as num).toDouble(),
-      origin: json['origin'] as String,
-      status: json['status'] as String,
+      id: toInt(rawId),
+      userId: toInt(json['userId']),
+      supplierId: toInt(json['supplierId']),
+      lotName: (json['lotName'] as String?) ?? '',
+      coffeeType: (json['coffeeType'] as String?) ?? '',
+      processingMethod: (json['processingMethod'] as String?) ?? '',
+      altitude: toInt(rawAltitude),
+      weight: toDouble(rawWeight),
+      origin: (json['origin'] as String?) ?? '',
+      status: (json['status'] as String?) ?? 'ACTIVE',
       certifications: certs,
     );
   }

@@ -12,11 +12,16 @@ class Portfolio {
   final String createdAt;
 
   factory Portfolio.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic val) {
+      if (val is num) return val.toInt();
+      return int.tryParse('$val') ?? 0;
+    }
+
     return Portfolio(
-      id: (json['id'] as num).toInt(),
-      userId: (json['userId'] as num).toInt(),
-      name: json['name'] as String,
-      createdAt: json['createdAt'] as String,
+      id: toInt(json['id']),
+      userId: toInt(json['userId']),
+      name: (json['name'] as String?) ?? '',
+      createdAt: (json['createdAt'] as String?) ?? '',
     );
   }
 }
