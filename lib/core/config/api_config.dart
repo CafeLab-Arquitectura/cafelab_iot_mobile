@@ -1,6 +1,6 @@
 class ApiConfig {
   // Oracle Cloud Infrastructure (OCI) API Gateway
-  static const String _defaultBackendUrl = 'http://141.148.45.231:8080';
+  static const String _defaultBackendUrl = 'https://magnificent-floral-pregnant-feb.trycloudflare.com';
 
   // Override at run time:
   // Android Emulator: --dart-define=API_BASE_URL=http://10.0.2.2:8080
