@@ -1,4 +1,6 @@
 class UpdateCoffeeLotInput {
+  final int? supplierId;
+  final int? userId;
   final String lotName;
   final String coffeeType;
   final String processingMethod;
@@ -9,6 +11,8 @@ class UpdateCoffeeLotInput {
   final List<String> certifications;
 
   const UpdateCoffeeLotInput({
+    this.supplierId,
+    this.userId,
     required this.lotName,
     required this.coffeeType,
     required this.processingMethod,

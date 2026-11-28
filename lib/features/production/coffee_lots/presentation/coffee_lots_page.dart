@@ -2154,6 +2154,7 @@ class _CoffeeLotFormValue {
 
   UpdateCoffeeLotInput toUpdateInput() {
     return UpdateCoffeeLotInput(
+      supplierId: supplierId,
       lotName: lotName,
       coffeeType: coffeeType,
       processingMethod: processingMethod,

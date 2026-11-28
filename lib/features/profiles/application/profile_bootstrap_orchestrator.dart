@@ -1,15 +1,20 @@
 import 'dart:io';
 
+import 'package:cafelab_iot_mobile/features/auth/data/user_session_storage.dart';
 import 'package:cafelab_iot_mobile/features/auth/domain/models/authenticated_user.dart';
 import 'package:cafelab_iot_mobile/features/auth/domain/models/sign_up_request.dart';
 import 'package:cafelab_iot_mobile/features/profiles/data/profile_api_service.dart';
 import 'package:cafelab_iot_mobile/features/profiles/domain/models/create_profile_request.dart';
 
 class ProfileBootstrapOrchestrator {
-  ProfileBootstrapOrchestrator({ProfileApiService? profileApiService})
-      : _profileApiService = profileApiService ?? ProfileApiService();
+  ProfileBootstrapOrchestrator({
+    ProfileApiService? profileApiService,
+    UserSessionStorage? sessionStorage,
+  })  : _profileApiService = profileApiService ?? ProfileApiService(),
+        _sessionStorage = sessionStorage ?? UserSessionStorage();
 
   final ProfileApiService _profileApiService;
+  final UserSessionStorage _sessionStorage;
 
   Future<void> ensureProfileExistsBeforeSignUp({
     required SignUpRequest signUpRequest,
@@ -35,7 +40,15 @@ class ProfileBootstrapOrchestrator {
     required AuthenticatedUser user,
   }) async {
     try {
-      await _profileApiService.getProfileByEmail(user.email);
+      final profile = await _profileApiService.getProfileByEmail(user.email);
+      await _sessionStorage.saveProfileState(
+        profileId: profile.id,
+        plan: profile.plan,
+        hasPlan: profile.hasPlan,
+      );
+      if (profile.id > 0) {
+        await _sessionStorage.saveUserId(profile.id);
+      }
     } on ProfileApiException catch (e) {
       if (e.statusCode == HttpStatus.notFound) {
         throw const ProfileApiException(

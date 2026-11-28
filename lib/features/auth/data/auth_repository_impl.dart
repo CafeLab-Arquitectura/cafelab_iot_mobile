@@ -35,6 +35,9 @@ class AuthRepositoryImpl implements AuthRepository {
     final user = await _apiService.signIn(request.email, request.password);
     await saveToken(user.token);
     await _sessionStorage.saveEmail(user.email);
+    if (user.id > 0) {
+      await _sessionStorage.saveUserId(user.id);
+    }
     final persistedToken = await getToken();
     if (persistedToken == null || persistedToken.isEmpty) {
       throw const AuthApiException(

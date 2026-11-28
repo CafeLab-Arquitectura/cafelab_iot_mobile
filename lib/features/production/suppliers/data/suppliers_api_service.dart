@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:cafelab_iot_mobile/core/config/api_config.dart';
 import 'package:cafelab_iot_mobile/features/auth/data/token_storage_service.dart';
+import 'package:cafelab_iot_mobile/features/auth/data/user_session_storage.dart';
 import 'package:cafelab_iot_mobile/features/production/shared/api_error_response.dart';
 import 'package:cafelab_iot_mobile/features/production/shared/production_api_exception.dart';
 import 'package:cafelab_iot_mobile/features/production/suppliers/data/dto/create_supplier_request_dto.dart';
@@ -14,12 +15,17 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class SuppliersApiService {
-  SuppliersApiService({http.Client? client, TokenStorageService? tokenStorage})
-    : _client = client ?? http.Client(),
-      _tokenStorage = tokenStorage ?? TokenStorageService();
+  SuppliersApiService({
+    http.Client? client,
+    TokenStorageService? tokenStorage,
+    UserSessionStorage? sessionStorage,
+  })  : _client = client ?? http.Client(),
+        _tokenStorage = tokenStorage ?? TokenStorageService(),
+        _sessionStorage = sessionStorage ?? UserSessionStorage();
 
   final http.Client _client;
   final TokenStorageService _tokenStorage;
+  final UserSessionStorage _sessionStorage;
 
   Uri get _baseUri =>
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.supplierBasePath}');
@@ -41,10 +47,11 @@ class SuppliersApiService {
   Future<SupplierResponseDto> createSupplier(
     CreateSupplierRequestDto dto,
   ) async {
+    final sessionUserId = await _sessionStorage.getUserId();
     final response = await _send(
       method: 'POST',
       uri: _baseUri,
-      body: jsonEncode(dto.toJson()),
+      body: jsonEncode(dto.toJson(fallbackUserId: sessionUserId)),
     );
     if (response.statusCode == HttpStatus.created) {
       return SupplierResponseDto.fromJson(

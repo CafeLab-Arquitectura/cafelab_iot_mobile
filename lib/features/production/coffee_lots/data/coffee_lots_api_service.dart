@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:cafelab_iot_mobile/core/config/api_config.dart';
 import 'package:cafelab_iot_mobile/features/auth/data/token_storage_service.dart';
+import 'package:cafelab_iot_mobile/features/auth/data/user_session_storage.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/data/dto/coffee_lot_response_dto.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/data/dto/create_coffee_lot_request_dto.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/data/dto/update_coffee_lot_request_dto.dart';
@@ -13,12 +14,17 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class CoffeeLotsApiService {
-  CoffeeLotsApiService({http.Client? client, TokenStorageService? tokenStorage})
-    : _client = client ?? http.Client(),
-      _tokenStorage = tokenStorage ?? TokenStorageService();
+  CoffeeLotsApiService({
+    http.Client? client,
+    TokenStorageService? tokenStorage,
+    UserSessionStorage? sessionStorage,
+  })  : _client = client ?? http.Client(),
+        _tokenStorage = tokenStorage ?? TokenStorageService(),
+        _sessionStorage = sessionStorage ?? UserSessionStorage();
 
   final http.Client _client;
   final TokenStorageService _tokenStorage;
+  final UserSessionStorage _sessionStorage;
 
   Uri get _baseUri =>
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.coffeeLotsBasePath}');
@@ -38,10 +44,11 @@ class CoffeeLotsApiService {
   }
 
   Future<CoffeeLotResponseDto> create(CreateCoffeeLotRequestDto dto) async {
+    final sessionUserId = await _sessionStorage.getUserId();
     final response = await _send(
       method: 'POST',
       uri: _baseUri,
-      body: jsonEncode(dto.toJson()),
+      body: jsonEncode(dto.toJson(fallbackUserId: sessionUserId)),
     );
     if (response.statusCode == HttpStatus.created) {
       return CoffeeLotResponseDto.fromJson(
@@ -73,10 +80,11 @@ class CoffeeLotsApiService {
     int id,
     UpdateCoffeeLotRequestDto dto,
   ) async {
+    final sessionUserId = await _sessionStorage.getUserId();
     final response = await _send(
       method: 'PUT',
       uri: Uri.parse('${_baseUri.toString()}/$id'),
-      body: jsonEncode(dto.toJson()),
+      body: jsonEncode(dto.toJson(fallbackUserId: sessionUserId)),
     );
     if (response.statusCode == HttpStatus.ok) {
       return CoffeeLotResponseDto.fromJson(

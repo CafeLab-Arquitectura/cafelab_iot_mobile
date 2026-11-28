@@ -1,4 +1,5 @@
 class CreateCoffeeLotInput {
+  final int? userId;
   final int supplierId;
   final String lotName;
   final String coffeeType;
@@ -10,6 +11,7 @@ class CreateCoffeeLotInput {
   final List<String> certifications;
 
   const CreateCoffeeLotInput({
+    this.userId,
     required this.supplierId,
     required this.lotName,
     required this.coffeeType,

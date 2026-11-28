@@ -1,4 +1,5 @@
 class CreateSupplierInput {
+  final int? userId;
   final String name;
   final String email;
   final int phone;
@@ -6,6 +7,7 @@ class CreateSupplierInput {
   final List<String> specialties;
 
   const CreateSupplierInput({
+    this.userId,
     required this.name,
     required this.email,
     required this.phone,

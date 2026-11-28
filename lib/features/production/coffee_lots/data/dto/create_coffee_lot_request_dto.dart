@@ -1,6 +1,7 @@
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/domain/models/create_coffee_lot_input.dart';
 
 class CreateCoffeeLotRequestDto {
+  final int? userId;
   final int supplierId;
   final String lotName;
   final String coffeeType;
@@ -12,6 +13,7 @@ class CreateCoffeeLotRequestDto {
   final List<String> certifications;
 
   const CreateCoffeeLotRequestDto({
+    this.userId,
     required this.supplierId,
     required this.lotName,
     required this.coffeeType,
@@ -25,6 +27,7 @@ class CreateCoffeeLotRequestDto {
 
   factory CreateCoffeeLotRequestDto.fromInput(CreateCoffeeLotInput input) {
     return CreateCoffeeLotRequestDto(
+      userId: input.userId,
       supplierId: input.supplierId,
       lotName: input.lotName,
       coffeeType: input.coffeeType,
@@ -37,8 +40,14 @@ class CreateCoffeeLotRequestDto {
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson({int? fallbackUserId}) {
+    final effectiveUserId = (userId != null && userId! > 0)
+        ? userId!
+        : ((fallbackUserId != null && fallbackUserId > 0) ? fallbackUserId : 1);
+
     return {
+      'userId': effectiveUserId,
+      'user_id': effectiveUserId,
       'supplierId': supplierId,
       'supplier_id': supplierId,
       'lotName': lotName,
