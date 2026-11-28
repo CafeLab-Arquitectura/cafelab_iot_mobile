@@ -1,12 +1,19 @@
+import 'dart:typed_data';
+
 import 'package:cafelab_iot_mobile/features/auth/presentation/constants/auth_colors.dart';
 import 'package:cafelab_iot_mobile/features/auth/presentation/widgets/auth_primary_button.dart';
 import 'package:cafelab_iot_mobile/features/auth/presentation/widgets/authenticated_scaffold.dart';
+import 'package:cafelab_iot_mobile/features/production/coffee_lots/data/document_autofill_api_service.dart';
+import 'package:cafelab_iot_mobile/features/production/coffee_lots/data/dto/document_autofill_response_dto.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/domain/models/coffee_lot.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/domain/models/create_coffee_lot_input.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/domain/models/update_coffee_lot_input.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/presentation/coffee_lots_controller.dart';
+import 'package:cafelab_iot_mobile/features/production/shared/production_api_exception.dart';
 import 'package:cafelab_iot_mobile/features/production/suppliers/domain/models/supplier.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class CoffeeLotsPage extends StatefulWidget {
   const CoffeeLotsPage({super.key});
@@ -84,6 +91,7 @@ class _CoffeeLotsPageState extends State<CoffeeLotsPage> {
         suppliers: controller.suppliers,
         title: 'Nuevo lote de cafe',
         submitLabel: 'Registrar lote de cafe',
+        autofillService: controller.autofillService,
         onSubmit: (value) async {
           final success = await controller.create(value.toCreateInput());
           if (success) {
@@ -830,12 +838,45 @@ class _TagChip extends StatelessWidget {
   }
 }
 
+enum _DocumentSourceOption {
+  camera,
+  gallery,
+  file,
+}
+
+Widget _autofillBadge() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE8F5E9),
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(color: const Color(0xFFA5D6A7)),
+    ),
+    child: const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.auto_awesome, size: 10, color: Color(0xFF2E7D32)),
+        SizedBox(width: 3),
+        Text(
+          'IA',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF2E7D32),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _CoffeeLotFormDialog extends StatefulWidget {
   const _CoffeeLotFormDialog({
     required this.suppliers,
     required this.title,
     required this.submitLabel,
     required this.onSubmit,
+    this.autofillService,
     this.lot,
   });
 
@@ -843,6 +884,7 @@ class _CoffeeLotFormDialog extends StatefulWidget {
   final List<Supplier> suppliers;
   final String title;
   final String submitLabel;
+  final DocumentAutofillApiService? autofillService;
   final Future<String?> Function(_CoffeeLotFormValue value) onSubmit;
 
   @override
@@ -857,9 +899,14 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
   ];
   static const List<String> _processingMethodOptions = <String>[
     'Lavado',
+    'Natural',
     'Honey',
+    'Fermentación anaeróbica',
+    'Maceración carbónica',
   ];
 
+  late final DocumentAutofillApiService _autofillService;
+  final ImagePicker _imagePicker = ImagePicker();
   late final TextEditingController _nameController;
   late final TextEditingController _originController;
   late final TextEditingController _altitudeController;
@@ -871,10 +918,16 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
   final Map<String, String> _fieldErrors = <String, String>{};
   String? _submitError;
   bool _isSubmitting = false;
+  bool _isAutofilling = false;
+  String? _autofillError;
+  String? _autofillNotice;
+  final Map<String, List<String>> _autofillHints = <String, List<String>>{};
+  final Set<String> _autofilledFields = <String>{};
 
   @override
   void initState() {
     super.initState();
+    _autofillService = widget.autofillService ?? DocumentAutofillApiService();
     final lot = widget.lot;
     _nameController = TextEditingController(text: lot?.lotName ?? '');
     _selectedCoffeeType = _resolveDropdownValue(
@@ -911,6 +964,355 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  String _normalizeForMatch(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[áàäâ]'), 'a')
+        .replaceAll(RegExp(r'[éèëê]'), 'e')
+        .replaceAll(RegExp(r'[íìïî]'), 'i')
+        .replaceAll(RegExp(r'[óòöô]'), 'o')
+        .replaceAll(RegExp(r'[úùüû]'), 'u')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  void _addAutofillHint(String formKey, String message) {
+    (_autofillHints[formKey] ??= <String>[]).add(message);
+  }
+
+  String? _mapAutofillFieldToFormKey(String field) {
+    switch (field) {
+      case 'lotName':
+        return 'name';
+      case 'supplierName':
+        return 'supplier';
+      case 'coffeeType':
+        return 'type';
+      case 'origin':
+        return 'origin';
+      case 'processingMethod':
+        return 'process';
+      case 'altitudeMeters':
+        return 'altitude';
+      case 'initialWeight':
+        return 'weight';
+      case 'certifications':
+        return 'certifications';
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _showDocumentSourcePicker() async {
+    final source = await showModalBottomSheet<_DocumentSourceOption>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDED8D0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Guía de remisión',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF3E4234),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Selecciona una opción para autocompletar los datos del lote con Inteligencia Artificial.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B665F),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF2E7D32)),
+                  ),
+                  title: const Text(
+                    'Tomar foto con la cámara',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF2E2E2E)),
+                  ),
+                  subtitle: const Text('Fotografía la guía física de remisión'),
+                  onTap: () => Navigator.of(sheetContext).pop(_DocumentSourceOption.camera),
+                ),
+                const SizedBox(height: 6),
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDE7F6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.photo_library_rounded, color: Color(0xFF512DA8)),
+                  ),
+                  title: const Text(
+                    'Elegir de la galería',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF2E2E2E)),
+                  ),
+                  subtitle: const Text('JPG o PNG almacenado en tu dispositivo'),
+                  onTap: () => Navigator.of(sheetContext).pop(_DocumentSourceOption.gallery),
+                ),
+                const SizedBox(height: 6),
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE3F2FD),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFF1565C0)),
+                  ),
+                  title: const Text(
+                    'Subir archivo (PDF o Imagen)',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF2E2E2E)),
+                  ),
+                  subtitle: const Text('PDF de 1 página o imagen (máx. 10 MB)'),
+                  onTap: () => Navigator.of(sheetContext).pop(_DocumentSourceOption.file),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+    await _pickAndProcessDocument(source);
+  }
+
+  Future<void> _pickAndProcessDocument(_DocumentSourceOption option) async {
+    try {
+      final Uint8List bytes;
+      final String filename;
+
+      switch (option) {
+        case _DocumentSourceOption.camera:
+          final picked = await _imagePicker.pickImage(
+            source: ImageSource.camera,
+            imageQuality: 85,
+          );
+          if (picked == null) return;
+          bytes = await picked.readAsBytes();
+          filename = picked.name.isNotEmpty ? picked.name : 'guia_camara.jpg';
+          break;
+
+        case _DocumentSourceOption.gallery:
+          final picked = await _imagePicker.pickImage(
+            source: ImageSource.gallery,
+            imageQuality: 85,
+          );
+          if (picked == null) return;
+          bytes = await picked.readAsBytes();
+          filename = picked.name.isNotEmpty ? picked.name : 'guia_galeria.jpg';
+          break;
+
+        case _DocumentSourceOption.file:
+          final file = await FilePicker.pickFile(
+            type: FileType.custom,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+          );
+          if (file == null) return;
+          bytes = await file.readAsBytes();
+          filename = file.name;
+          break;
+      }
+
+      final lower = filename.toLowerCase();
+      final isAllowed = DocumentAutofillApiService.allowedExtensions.any(
+        (ext) => lower.endsWith(ext),
+      );
+      if (!isAllowed) {
+        setState(() {
+          _autofillError = 'Formato no permitido. Usa JPG, PNG o PDF.';
+        });
+        return;
+      }
+
+      if (bytes.length > DocumentAutofillApiService.maxFileSizeBytes) {
+        setState(() {
+          _autofillError = 'El archivo supera el máximo de 10 MB.';
+        });
+        return;
+      }
+
+      setState(() {
+        _isAutofilling = true;
+        _autofillError = null;
+        _autofillNotice = null;
+        _autofillHints.clear();
+      });
+
+      final response = await _autofillService.autofillFromBytes(
+        bytes: bytes,
+        filename: filename,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _applyAutofill(response, filename);
+      });
+    } on ProductionApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _autofillError = e.userMessage;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _autofillError =
+            'No se pudo leer el documento automáticamente. Completa el formulario manualmente.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAutofilling = false;
+        });
+      }
+    }
+  }
+
+  void _applyAutofill(DocumentAutofillResponseDto response, String filename) {
+    final f = response.fields;
+    final filled = <String>{};
+
+    if (f.lotName.value != null && f.lotName.value!.trim().isNotEmpty) {
+      _nameController.text = f.lotName.value!.trim();
+      filled.add('name');
+    }
+
+    if (f.origin.value != null && f.origin.value!.trim().isNotEmpty) {
+      _originController.text = f.origin.value!.trim();
+      filled.add('origin');
+    }
+
+    final resolvedType = _resolveDropdownValue(
+      currentValue: f.coffeeType.value,
+      allowedValues: _coffeeTypeOptions,
+    );
+    if (resolvedType != null) {
+      _selectedCoffeeType = resolvedType;
+      filled.add('type');
+    }
+
+    final resolvedProcess = _resolveDropdownValue(
+      currentValue: f.processingMethod.value,
+      allowedValues: _processingMethodOptions,
+    );
+    if (resolvedProcess != null) {
+      _selectedProcessingMethod = resolvedProcess;
+      filled.add('process');
+    }
+
+    if (f.altitudeMeters.value != null) {
+      _altitudeController.text = f.altitudeMeters.value!.round().toString();
+      filled.add('altitude');
+    }
+
+    if (f.initialWeight.value != null) {
+      _weightController.text = _formatWeight(f.initialWeight.value!);
+      filled.add('weight');
+    }
+
+    final extractedCerts = f.certifications.value ?? const <String>[];
+    if (extractedCerts.isNotEmpty) {
+      for (final c in _certificationControllers) {
+        c.dispose();
+      }
+      _certificationControllers.clear();
+      for (final cert in extractedCerts) {
+        if (cert.trim().isNotEmpty) {
+          _certificationControllers.add(TextEditingController(text: cert.trim()));
+        }
+      }
+      if (_certificationControllers.isEmpty) {
+        _certificationControllers.add(TextEditingController());
+      } else {
+        filled.add('certifications');
+      }
+    }
+
+    final supplierName = f.supplierName.value?.trim();
+    if (supplierName != null && supplierName.isNotEmpty) {
+      final key = _normalizeForMatch(supplierName);
+      final matches = widget.suppliers
+          .where((s) => _normalizeForMatch(s.name) == key)
+          .toList();
+      if (matches.length == 1) {
+        _selectedSupplierId = matches.first.id;
+        filled.add('supplier');
+        _addAutofillHint(
+          'supplier',
+          'Proveedor seleccionado según la guía: ${matches.first.name}. Verifícalo.',
+        );
+      } else {
+        _addAutofillHint(
+          'supplier',
+          'La guía indica el proveedor «$supplierName». Selecciónalo de la lista.',
+        );
+      }
+    }
+
+    for (final warning in response.warnings) {
+      if (warning.code == 'NOT_FOUND' || warning.field == 'supplierName') {
+        continue;
+      }
+      final formKey = _mapAutofillFieldToFormKey(warning.field);
+      if (formKey != null && warning.message.isNotEmpty) {
+        _addAutofillHint(formKey, warning.message);
+      }
+    }
+
+    for (final key in filled) {
+      _fieldErrors.remove(key);
+    }
+
+    _autofilledFields
+      ..clear()
+      ..addAll(filled);
+
+    _autofillNotice = filled.isNotEmpty
+        ? 'Se completaron ${filled.length} campos desde «$filename». Revisa los datos antes de registrar.'
+        : 'No se encontraron datos en «$filename». Completa el formulario manualmente.';
   }
 
   void _addCertificationField() {
@@ -1018,6 +1420,195 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
     });
   }
 
+  Widget _buildAutofillSection() {
+    if (widget.lot != null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F5F0),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: _isAutofilling
+              ? AuthColors.primary
+              : const Color(0xFFE2DDD5),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AuthColors.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Autocompletar con IA',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF3E4234),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Escanea o sube una guía de remisión',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B665F),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AuthColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              disabledBackgroundColor: const Color(0xFF9E9D98),
+            ),
+            onPressed: (_isAutofilling || _isSubmitting)
+                ? null
+                : _showDocumentSourcePicker,
+            icon: _isAutofilling
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.document_scanner_rounded, size: 18),
+            label: Text(
+              _isAutofilling
+                  ? 'Leyendo la guía con IA…'
+                  : 'Escanear guía de remisión',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Formatos: JPG, PNG o PDF (máx. 10 MB). Revisa los datos antes de guardar.',
+            style: TextStyle(
+              fontSize: 11,
+              color: Color(0xFF8A847C),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (_autofillError != null) ...[
+            const SizedBox(height: 10),
+            _MessageBanner(
+              message: _autofillError!,
+              backgroundColor: const Color(0xFFF8D9D9),
+              foregroundColor: const Color(0xFF8C1D1D),
+            ),
+          ],
+          if (_autofillNotice != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFA5D6A7)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF2E7D32),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _autofillNotice!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1B5E20),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFieldHints(String formKey) {
+    final hints = _autofillHints[formKey];
+    if (hints == null || hints.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: hints.map((hint) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8E1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFFE082)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: Color(0xFFF57F17),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    hint,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF5D4037),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -1045,7 +1636,7 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                 Row(
                   children: [
                     IconButton(
-                      onPressed: _isSubmitting
+                      onPressed: (_isSubmitting || _isAutofilling)
                           ? null
                           : () => Navigator.of(context).pop(),
                       icon: const Icon(
@@ -1077,10 +1668,13 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                   ),
                 ),
                 const SizedBox(height: 18),
+                _buildAutofillSection(),
                 _CoffeeLotInputField(
                   label: 'Nombre',
                   controller: _nameController,
-                  enabled: !_isSubmitting,
+                  enabled: !_isSubmitting && !_isAutofilling,
+                  isAutofilled: _autofilledFields.contains('name'),
+                  hintWidget: _buildFieldHints('name'),
                   errorText: _fieldErrors['name'],
                 ),
                 const SizedBox(height: 14),
@@ -1088,7 +1682,9 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                   label: 'Tipo de cafe',
                   value: _selectedCoffeeType,
                   options: _coffeeTypeOptions,
-                  enabled: !_isSubmitting,
+                  enabled: !_isSubmitting && !_isAutofilling,
+                  isAutofilled: _autofilledFields.contains('type'),
+                  hintWidget: _buildFieldHints('type'),
                   onChanged: (value) {
                     setState(() {
                       _selectedCoffeeType = value;
@@ -1101,7 +1697,9 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                   label: 'Proceso',
                   value: _selectedProcessingMethod,
                   options: _processingMethodOptions,
-                  enabled: !_isSubmitting,
+                  enabled: !_isSubmitting && !_isAutofilling,
+                  isAutofilled: _autofilledFields.contains('process'),
+                  hintWidget: _buildFieldHints('process'),
                   onChanged: (value) {
                     setState(() {
                       _selectedProcessingMethod = value;
@@ -1113,25 +1711,31 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                 _CoffeeLotInputField(
                   label: 'Origen',
                   controller: _originController,
-                  enabled: !_isSubmitting,
+                  enabled: !_isSubmitting && !_isAutofilling,
+                  isAutofilled: _autofilledFields.contains('origin'),
+                  hintWidget: _buildFieldHints('origin'),
                   errorText: _fieldErrors['origin'],
                 ),
                 const SizedBox(height: 14),
                 _CoffeeLotInputField(
                   label: 'Altitud (msnm)',
                   controller: _altitudeController,
-                  enabled: !_isSubmitting,
+                  enabled: !_isSubmitting && !_isAutofilling,
                   keyboardType: TextInputType.number,
+                  isAutofilled: _autofilledFields.contains('altitude'),
+                  hintWidget: _buildFieldHints('altitude'),
                   errorText: _fieldErrors['altitude'],
                 ),
                 const SizedBox(height: 14),
                 _CoffeeLotInputField(
                   label: 'Peso (kg)',
                   controller: _weightController,
-                  enabled: !_isSubmitting,
+                  enabled: !_isSubmitting && !_isAutofilling,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
+                  isAutofilled: _autofilledFields.contains('weight'),
+                  hintWidget: _buildFieldHints('weight'),
                   errorText: _fieldErrors['weight'],
                 ),
                 const SizedBox(height: 14),
@@ -1139,8 +1743,10 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                   label: 'Proveedor',
                   suppliers: widget.suppliers,
                   value: _selectedSupplierId,
-                  enabled: !_isSubmitting,
+                  enabled: !_isSubmitting && !_isAutofilling,
                   isEditable: widget.lot == null,
+                  isAutofilled: _autofilledFields.contains('supplier'),
+                  hintWidget: _buildFieldHints('supplier'),
                   onChanged: (value) {
                     setState(() {
                       _selectedSupplierId = value;
@@ -1149,14 +1755,23 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                   errorText: _fieldErrors['supplier'],
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Certificaciones',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF2E2E2E),
-                  ),
+                Row(
+                  children: [
+                    const Text(
+                      'Certificaciones',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF2E2E2E),
+                      ),
+                    ),
+                    if (_autofilledFields.contains('certifications')) ...[
+                      const SizedBox(width: 8),
+                      _autofillBadge(),
+                    ],
+                  ],
                 ),
+                _buildFieldHints('certifications'),
                 const SizedBox(height: 10),
                 ...List<Widget>.generate(
                   _certificationControllers.length,
@@ -1171,13 +1786,13 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                         Expanded(
                           child: _CoffeeLotRoundedField(
                             controller: _certificationControllers[index],
-                            enabled: !_isSubmitting,
+                            enabled: !_isSubmitting && !_isAutofilling,
                             hintText: 'Certificacion ${index + 1}',
                           ),
                         ),
                         const SizedBox(width: 8),
                         InkWell(
-                          onTap: _isSubmitting
+                          onTap: (_isSubmitting || _isAutofilling)
                               ? null
                               : () => _removeCertificationField(index),
                           borderRadius: BorderRadius.circular(10),
@@ -1201,7 +1816,9 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                   ),
                 ),
                 InkWell(
-                  onTap: _isSubmitting ? null : _addCertificationField,
+                  onTap: (_isSubmitting || _isAutofilling)
+                      ? null
+                      : _addCertificationField,
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
                     height: 34,
@@ -1225,7 +1842,7 @@ class _CoffeeLotFormDialogState extends State<_CoffeeLotFormDialog> {
                 AuthPrimaryButton(
                   label: widget.submitLabel,
                   isLoading: _isSubmitting,
-                  onPressed: _isSubmitting ? null : _submit,
+                  onPressed: (_isSubmitting || _isAutofilling) ? null : _submit,
                 ),
               ],
             ),
@@ -1244,6 +1861,8 @@ class _CoffeeLotSupplierField extends StatelessWidget {
     required this.onChanged,
     this.enabled = true,
     this.isEditable = true,
+    this.isAutofilled = false,
+    this.hintWidget,
     this.errorText,
   });
 
@@ -1253,6 +1872,8 @@ class _CoffeeLotSupplierField extends StatelessWidget {
   final ValueChanged<int?> onChanged;
   final bool enabled;
   final bool isEditable;
+  final bool isAutofilled;
+  final Widget? hintWidget;
   final String? errorText;
 
   @override
@@ -1265,17 +1886,26 @@ class _CoffeeLotSupplierField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF2E2E2E),
-          ),
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2E2E2E),
+              ),
+            ),
+            if (isAutofilled) ...[
+              const SizedBox(width: 8),
+              _autofillBadge(),
+            ],
+          ],
         ),
         const SizedBox(height: 8),
         if (isEditable)
           DropdownButtonFormField<int>(
+            key: ValueKey<int?>(value),
             initialValue: value,
             items: suppliers
                 .map(
@@ -1303,6 +1933,7 @@ class _CoffeeLotSupplierField extends StatelessWidget {
               ),
             ),
           ),
+        if (hintWidget != null) hintWidget!,
         if (errorText != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -1326,6 +1957,8 @@ class _CoffeeLotSelectField extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.enabled = true,
+    this.isAutofilled = false,
+    this.hintWidget,
     this.errorText,
   });
 
@@ -1334,6 +1967,8 @@ class _CoffeeLotSelectField extends StatelessWidget {
   final String? value;
   final ValueChanged<String?> onChanged;
   final bool enabled;
+  final bool isAutofilled;
+  final Widget? hintWidget;
   final String? errorText;
 
   @override
@@ -1341,16 +1976,25 @@ class _CoffeeLotSelectField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF2E2E2E),
-          ),
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2E2E2E),
+              ),
+            ),
+            if (isAutofilled) ...[
+              const SizedBox(width: 8),
+              _autofillBadge(),
+            ],
+          ],
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
+          key: ValueKey<String?>(value),
           initialValue: value,
           items: options
               .map(
@@ -1366,6 +2010,7 @@ class _CoffeeLotSelectField extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           dropdownColor: Colors.white,
         ),
+        if (hintWidget != null) hintWidget!,
         if (errorText != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -1388,6 +2033,8 @@ class _CoffeeLotInputField extends StatelessWidget {
     required this.controller,
     this.keyboardType,
     this.enabled = true,
+    this.isAutofilled = false,
+    this.hintWidget,
     this.errorText,
   });
 
@@ -1395,6 +2042,8 @@ class _CoffeeLotInputField extends StatelessWidget {
   final TextEditingController controller;
   final TextInputType? keyboardType;
   final bool enabled;
+  final bool isAutofilled;
+  final Widget? hintWidget;
   final String? errorText;
 
   @override
@@ -1402,13 +2051,21 @@ class _CoffeeLotInputField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF2E2E2E),
-          ),
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2E2E2E),
+              ),
+            ),
+            if (isAutofilled) ...[
+              const SizedBox(width: 8),
+              _autofillBadge(),
+            ],
+          ],
         ),
         const SizedBox(height: 8),
         _CoffeeLotRoundedField(
@@ -1417,6 +2074,7 @@ class _CoffeeLotInputField extends StatelessWidget {
           keyboardType: keyboardType,
           hintText: label,
         ),
+        if (hintWidget != null) hintWidget!,
         if (errorText != null) ...[
           const SizedBox(height: 6),
           Text(

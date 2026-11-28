@@ -6,7 +6,7 @@ class MonitoringTrendChart extends StatelessWidget {
   // 🚀 Cambiado de List<dynamic> a List<TelemetryRecord> para hacer match perfecto con el controller
   final List<TelemetryRecord> telemetryRecords; 
 
-  const MonitoringTrendChart({Key? key, required this.telemetryRecords}) : super(key: key);
+  const MonitoringTrendChart({super.key, required this.telemetryRecords});
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +39,7 @@ class MonitoringTrendChart extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -66,7 +66,10 @@ class MonitoringTrendChart extends StatelessWidget {
                   color: const Color(0xFFD27D2D),
                   barWidth: 3,
                   dotData: FlDotData(show: true),
-                  belowBarData: BarAreaData(show: true, color: const Color(0xFFD27D2D).withOpacity(0.08)),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: const Color(0xFFD27D2D).withValues(alpha: 0.08),
+                  ),
                 ),
                 // 💧 Línea de Humedad
                 LineChartBarData(
@@ -78,7 +81,10 @@ class MonitoringTrendChart extends StatelessWidget {
                   color: Colors.blue.shade400,
                   barWidth: 3,
                   dotData: FlDotData(show: true),
-                  belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.08)),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: Colors.blue.withValues(alpha: 0.08),
+                  ),
                 ),
               ],
             ),

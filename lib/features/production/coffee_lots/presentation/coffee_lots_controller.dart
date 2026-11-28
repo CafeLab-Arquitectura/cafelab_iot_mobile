@@ -1,4 +1,6 @@
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/data/coffee_lots_repository_impl.dart';
+import 'package:cafelab_iot_mobile/features/production/coffee_lots/data/document_autofill_api_service.dart';
+import 'package:cafelab_iot_mobile/features/production/coffee_lots/data/dto/document_autofill_response_dto.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/domain/coffee_lots_repository.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/domain/models/coffee_lot.dart';
 import 'package:cafelab_iot_mobile/features/production/coffee_lots/domain/models/create_coffee_lot_input.dart';
@@ -13,13 +15,28 @@ class CoffeeLotsController extends ChangeNotifier {
   CoffeeLotsController({
     CoffeeLotsRepository? repository,
     SuppliersRepository? suppliersRepository,
+    DocumentAutofillApiService? documentAutofillApiService,
   }) : _repository = repository ?? CoffeeLotsRepositoryImpl(),
-       _suppliersRepository = suppliersRepository ?? SuppliersRepositoryImpl();
+       _suppliersRepository = suppliersRepository ?? SuppliersRepositoryImpl(),
+       _autofillService = documentAutofillApiService ?? DocumentAutofillApiService();
 
   final CoffeeLotsRepository _repository;
   final SuppliersRepository _suppliersRepository;
+  final DocumentAutofillApiService _autofillService;
   final List<CoffeeLot> _allItems = <CoffeeLot>[];
   final List<Supplier> _suppliers = <Supplier>[];
+
+  DocumentAutofillApiService get autofillService => _autofillService;
+
+  Future<DocumentAutofillResponseDto> autofillFromBytes({
+    required Uint8List bytes,
+    required String filename,
+  }) {
+    return _autofillService.autofillFromBytes(
+      bytes: bytes,
+      filename: filename,
+    );
+  }
 
   bool isLoading = false;
   bool hasLoaded = false;

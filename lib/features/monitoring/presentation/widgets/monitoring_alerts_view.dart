@@ -4,7 +4,7 @@ import 'package:cafelab_iot_mobile/features/monitoring/domain/models/monitoring_
 class MonitoringAlertsView extends StatelessWidget {
   final List<MonitoringAlert> alerts;
 
-  const MonitoringAlertsView({Key? key, required this.alerts}) : super(key: key);
+  const MonitoringAlertsView({super.key, required this.alerts});
 
   @override
   Widget build(BuildContext context) {

@@ -28,4 +28,5 @@ class ApiConfig {
   static const String iotDashboardBasePath = '/api/v1/iot-monitoring/dashboard';
   static const String costingBatchesBasePath = '/api/v1/costing/batches';
   static const String costingPerformancesBasePath = '/api/v1/costing/lot-performances';
+  static const String documentAutofillBasePath = '/api/v1/documents/autofill';
 }
